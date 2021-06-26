@@ -1,23 +1,29 @@
-netology-3.9
+##  netology-3.9 
 
 
-#==  insatall Valut
-
-    1  sudo apt update
-    2  sudo apt-get install jq
-    3  sudo curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
-    4  sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
-    5  sudo apt-get update && sudo apt-get install vault
+Установите Hashicorp Vault в виртуальной машине Vagrant/VirtualBox. Это не является обязательным для выполнения задания, но для лучшего понимания что происходит при выполнении команд (посмотреть результат в UI), можно по аналогии с netdata из прошлых лекций пробросить порт Vault на localhost:
 
 
+#### insatall Valut
 
+    - sudo apt update
+    - sudo apt-get install jq
+    - sudo curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
+    - sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
+    - sudo apt-get update && sudo apt-get install vault
+
+
+```
 vault --version
+	Vault v1.7.3 (5d517c864c8f10385bf65627891bc7ef55f5e827)
+```
 
-Vault v1.7.3 (5d517c864c8f10385bf65627891bc7ef55f5e827)
+Запускаем Vault в dev режиме: 
 
-#====
-
+```
 vagrant@vagrant:~$ VAULT_UI=true vault server -dev -dev-listen-address="0.0.0.0:8200" -dev-root-token-id="root"
+```
+```
 ==> Vault server configuration:
 
              Api Address: http://0.0.0.0:8200
@@ -32,9 +38,12 @@ vagrant@vagrant:~$ VAULT_UI=true vault server -dev -dev-listen-address="0.0.0.0:
                  Version: Vault v1.7.3
              Version Sha: 5d517c864c8f10385bf65627891bc7ef55f5e827
 
-
+```
+```
 vagrant@vagrant:~$ export VAULT_ADDR='http://0.0.0.0:8200'
 vagrant@vagrant:~$ vault status
+```
+```
 Key             Value
 ---             -----
 Seal Type       shamir
@@ -49,10 +58,13 @@ Cluster ID      b97bcf57-a7fe-af67-5ab2-3b40949a27a9
 HA Enabled      false
 vagrant@vagrant:~$
 
+```
+Создадим Root CA и Intermediate CA
 
-#=== generate the Root CA:
+#### generate the Root CA:
 
- vault login root
+```
+vault login root
 Success! You are now authenticated. The token information displayed below
 is already stored in the token helper. You do NOT need to run "vault login"
 again. Future Vault requests will automatically use this token.
@@ -66,26 +78,19 @@ token_renewable      false
 token_policies       ["root"]
 identity_policies    []
 policies             ["root"]
-
+```
+```
  vault secrets enable pki
 Success! Enabled the pki secrets engine at: pki/
-
+```
+```
  vault write -format=json pki/root/generate/internal common_name="pki-ca-root" ttl=87600h | tee >(jq -r .data.certificate > ca.pem) >(jq -r .data.issuing_ca > issuing_ca.pem) >(jq -r .data.private_key > ca-key.pem)
-{
-  "request_id": "ab138dc6-e767-d1d0-3716-5774c2052ac3",
-  "lease_id": "",
-  "lease_duration": 0,
-  "renewable": false,
-  "data": {
-    "certificate": "-----BEGIN CERTIFICATE-----\nMIIDNTCCAh2gAwIBAgIUFjYMyn8V/nOEJlMoVQwOlWBUz+4wDQYJKoZIhvcNAQEL\nBQAwFjEUMBIGA1UEAxMLcGtpLWNhLXJvb3QwHhcNMjEwNjIyMTg1NzA2WhcNMjEw\nNzI0MTg1NzM1WjAWMRQwEgYDVQQDEwtwa2ktY2Etcm9vdDCCASIwDQYJKoZIhvcN\nAQEBBQADggEPADCCAQoCggEBAKZxgJUdMuhoOgbom+K+pZiWDlpufCGO/qgX1wHe\nzTxd/3CCuZr/OI0iMNdjV8ki1Mqm5uW9DyWkZV6vwyfCEnFmuxkHukllQAuz6OJp\nbZlJjhEMeQ/UWUV3Si/S8cf3L7gD8HY7D4RdDu3rOOmNTRaQoX/PAgAh+xzBn1Z6\n932q9ovADamirLpasjGf3r9cD2lEVxajQMKW56pFUxRmau5C+umf4YiCEwXpFh5+\nwAzJEUA5yHAjhx8PD49fLnqc1mnPqbKCKEHKMSl7WwCN0mIlgWkZyGIqOJDC8xCD\nmDKnrQQ0H1k1ACo/ljaZs4M1Dn7wqzCTxibNSXBDUxThMpMCAwEAAaN7MHkwDgYD\nVR0PAQH/BAQDAgEGMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYEFF2C44fuDSox\nzvFJff4zsPGFhku7MB8GA1UdIwQYMBaAFF2C44fuDSoxzvFJff4zsPGFhku7MBYG\nA1UdEQQPMA2CC3BraS1jYS1yb290MA0GCSqGSIb3DQEBCwUAA4IBAQA5nXu6MVP+\nri3vye8lrnm2woawn54XmLkexeV5P20TCRdg2ey05EJ3P+uTL8tuwoYGfzBG47I9\nA6Rf9p0weZ5X3k+aS5tpmoF1ZF+/SJWR7l1mBAiAeqJz0YPH18QqyqIV9CeNTuho\n4klrUzVkSeBKT3/IfWH7cEGfn0b4XP26SXnCK9bVtE9sBFwj8fSia8g3oc5Cpw70\nuPwHeV2vgELlDmYnWoGu/YfNhO90An2qPLecJDerYJLa/Q9/srvrkG7/3rp0HjdO\n0mqHnUTTynbl5K7Mwuu6DLvzdy77UazmW46TimLIO1ZWkokgCjAeBosyn9lR5LsF\nkcYTP4yr38XG\n-----END CERTIFICATE-----",
-    "expiration": 1627153055,
-    "issuing_ca": "-----BEGIN CERTIFICATE-----\nMIIDNTCCAh2gAwIBAgIUFjYMyn8V/nOEJlMoVQwOlWBUz+4wDQYJKoZIhvcNAQEL\nBQAwFjEUMBIGA1UEAxMLcGtpLWNhLXJvb3QwHhcNMjEwNjIyMTg1NzA2WhcNMjEw\nNzI0MTg1NzM1WjAWMRQwEgYDVQQDEwtwa2ktY2Etcm9vdDCCASIwDQYJKoZIhvcN\nAQEBBQADggEPADCCAQoCggEBAKZxgJUdMuhoOgbom+K+pZiWDlpufCGO/qgX1wHe\nzTxd/3CCuZr/OI0iMNdjV8ki1Mqm5uW9DyWkZV6vwyfCEnFmuxkHukllQAuz6OJp\nbZlJjhEMeQ/UWUV3Si/S8cf3L7gD8HY7D4RdDu3rOOmNTRaQoX/PAgAh+xzBn1Z6\n932q9ovADamirLpasjGf3r9cD2lEVxajQMKW56pFUxRmau5C+umf4YiCEwXpFh5+\nwAzJEUA5yHAjhx8PD49fLnqc1mnPqbKCKEHKMSl7WwCN0mIlgWkZyGIqOJDC8xCD\nmDKnrQQ0H1k1ACo/ljaZs4M1Dn7wqzCTxibNSXBDUxThMpMCAwEAAaN7MHkwDgYD\nVR0PAQH/BAQDAgEGMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYEFF2C44fuDSox\nzvFJff4zsPGFhku7MB8GA1UdIwQYMBaAFF2C44fuDSoxzvFJff4zsPGFhku7MBYG\nA1UdEQQPMA2CC3BraS1jYS1yb290MA0GCSqGSIb3DQEBCwUAA4IBAQA5nXu6MVP+\nri3vye8lrnm2woawn54XmLkexeV5P20TCRdg2ey05EJ3P+uTL8tuwoYGfzBG47I9\nA6Rf9p0weZ5X3k+aS5tpmoF1ZF+/SJWR7l1mBAiAeqJz0YPH18QqyqIV9CeNTuho\n4klrUzVkSeBKT3/IfWH7cEGfn0b4XP26SXnCK9bVtE9sBFwj8fSia8g3oc5Cpw70\nuPwHeV2vgELlDmYnWoGu/YfNhO90An2qPLecJDerYJLa/Q9/srvrkG7/3rp0HjdO\n0mqHnUTTynbl5K7Mwuu6DLvzdy77UazmW46TimLIO1ZWkokgCjAeBosyn9lR5LsF\nkcYTP4yr38XG\n-----END CERTIFICATE-----",
-    "serial_number": "16:36:0c:ca:7f:15:fe:73:84:26:53:28:55:0c:0e:95:60:54:cf:ee"
-  },
-  "warnings": null
-}
 
+```
+```
  curl -s http://0.0.0.0:8200/v1/pki/ca/pem | openssl x509 -text
+ ```
+ ```
 Certificate:
     Data:
         Version: 3 (0x2)
@@ -169,31 +174,57 @@ uPwHeV2vgELlDmYnWoGu/YfNhO90An2qPLecJDerYJLa/Q9/srvrkG7/3rp0HjdO
 kcYTP4yr38XG
 -----END CERTIFICATE-----
 
-#===  enable and configure an Intermediate CA
+```
+подпишим Intermediate CA csr на сертификат для тестового домена netology.example.com
 
+#### enable and configure an Intermediate CA
+```
     vault secrets enable -path pki_int pki
+```
 Success! Enabled the pki secrets engine at: pki_int/
-
-
-    vault write -format=json pki_int/intermediate/generate/internal common_name="pki-ca-int" ttl=43800h | tee >(jq -r .data.csr > pki_int.csr) >(jq -r .data.private_key > pki_int.pem)
+```
+vault write -format=json pki_int/intermediate/generate/internal common_name="pki-ca-int" ttl=43800h | tee >(jq -r .data.csr > pki_int.csr) >(jq -r .data.private_key > pki_int.pem)
+```
+```
 {
   "request_id": "a1ddf33d-35c5-7ed2-5fc1-7725d80dd7ed",
   "lease_id": "",
   "lease_duration": 0,
   "renewable": false,
   "data": {
-    "csr": "-----BEGIN CERTIFICATE REQUEST-----\nMIICgjCCAWoCAQAwFTETMBEGA1UEAxMKcGtpLWNhLWludDCCASIwDQYJKoZIhvcN\nAQEBBQADggEPADCCAQoCggEBAO5l9qZWIsn5shgiieruZ03uSqLhKbq1xHkOGOq6\ni1oRbYqDBJvkrPI7XwOid0pJo5Ojuah3CHPNVuVTHuISUUphitcQHwOW5XRCqD/4\nX+1B07TRiqgyxIrNzRe82GPydkaymRJJDITtTYJLNsE+iX7IqiUxyP7XpDcCUGnH\nvok3HFz/WkegpwDJAaV2IkJhAHkuqO2mk3No5bLOJOY0g64YEqZujxEpDToP97ty\nQ/wIWxY4xYhuKJiybwdKc5IeUtqnBIm3DJtfDPGGxr1Mb8bgDfdtQpmdUVB8mUTa\nmjJvCxi49auxIrQueuSD+/e/ONfzfNUmBQx/i8vj6ZdlRsECAwEAAaAoMCYGCSqG\nSIb3DQEJDjEZMBcwFQYDVR0RBA4wDIIKcGtpLWNhLWludDANBgkqhkiG9w0BAQsF\nAAOCAQEAEP0UU2y/fjYm859xiTkufMM8WOnJjaF6vSMVZA6+5hepk4CW2LHNpOXD\nRQo80aAoqLv9RsV8le9r1qKBVf7JW0DW9T5Z368w2G7gVxVvJq7Wzch00FLG4CAC\n/xVaBTOzwN785THm+A6xa4Do3am+MxExQnyT+Weube3FtXkLt7koP+TH9TT0ht5L\nvIuo5BLcRiYXp3Q/ENSx7OiL45DD4KeIsIL9l/kWw2rinptPPrwmQsjhHiHlzFRj\nthqIDH6yCbqG1X9ujKSoCU+FfkNOk8GVBHRW1xw6jYfS9GO8+WsdoaOgTIjIVfZc\nh+/vTVH/bStPp04d8ZbzLusHNgWlgQ==\n-----END CERTIFICATE REQUEST-----"
+    "csr": "
+    -----BEGIN CERTIFICATE REQUEST-----
+MIICgjCCAWoCAQAwFTETMBEGA1UEAxMKcGtpLWNhLWludDCCASIwDQYJKoZIhvcN
+AQEBBQADggEPADCCAQoCggEBAO5l9qZWIsn5shgiieruZ03uSqLhKbq1xHkOGOq6
+i1oRbYqDBJvkrPI7XwOid0pJo5Ojuah3CHPNVuVTHuISUUphitcQHwOW5XRCqD/4
+X+1B07TRiqgyxIrNzRe82GPydkaymRJJDITtTYJLNsE+iX7IqiUxyP7XpDcCUGnH
+vok3HFz/WkegpwDJAaV2IkJhAHkuqO2mk3No5bLOJOY0g64YEqZujxEpDToP97ty
+Q/wIWxY4xYhuKJiybwdKc5IeUtqnBIm3DJtfDPGGxr1Mb8bgDfdtQpmdUVB8mUTa
+mjJvCxi49auxIrQueuSD+/e/ONfzfNUmBQx/i8vj6ZdlRsECAwEAAaAoMCYGCSqG
+SIb3DQEJDjEZMBcwFQYDVR0RBA4wDIIKcGtpLWNhLWludDANBgkqhkiG9w0BAQsF
+AAOCAQEAEP0UU2y/fjYm859xiTkufMM8WOnJjaF6vSMVZA6+5hepk4CW2LHNpOXD
+RQo80aAoqLv9RsV8le9r1qKBVf7JW0DW9T5Z368w2G7gVxVvJq7Wzch00FLG4CAC
+/xVaBTOzwN785THm+A6xa4Do3am+MxExQnyT+Weube3FtXkLt7koP+TH9TT0ht5L
+vIuo5BLcRiYXp3Q/ENSx7OiL45DD4KeIsIL9l/kWw2rinptPPrwmQsjhHiHlzFRj
+thqIDH6yCbqG1X9ujKSoCU+FfkNOk8GVBHRW1xw6jYfS9GO8+WsdoaOgTIjIVfZc
+h+/vTVH/bStPp04d8ZbzLusHNgWlgQ==
+-----END CERTIFICATE REQUEST-----"
   },
   "warnings": null
 }
-
+```
+```
 vault write pki_int/intermediate/set-signed certificate=@pki_int.pem
+```
+```
 Success! Data written to: pki_int/intermediate/set-signed
+```
+#### PKI Role
 
-#=== PKI Role
-
+ ```
  vault login s.6ZlvUSO93OW4tlyTFOEkgnxl
-
+```
+```
 Success! You are now authenticated. The token information displayed below
 is already stored in the token helper. You do NOT need to run "vault login"
 again. Future Vault requests will automatically use this token.
@@ -207,32 +238,128 @@ token_renewable      true
 token_policies       ["default" "pki_int"]
 identity_policies    []
 policies             ["default" "pki_int"]
+```
 
-
-#=== Create a Role
-
+#### Create a Role
+```
 vault write pki_int/roles/example-dot-com allowed_domains="example.com" allow_subdomains=true max_ttl="720h"
 vault write pki_int/issue/example-dot-com common_name="netology.example.com" ttl="24h"
-
+```
+```
 {
-  "certificate": "-----BEGIN CERTIFICATE-----\nMIID0DCCArigAwIBAgIUCHLzZsARupKtLb6Tp1UKzu8EPZswDQYJKoZIhvcNAQEL\nBQAwFTETMBEGA1UEAxMKcGtpLWNhLWludDAeFw0yMTA2MjIyMTA1MDdaFw0yMTA2\nMjMyMTA1MzdaMB8xHTAbBgNVBAMTFG5ldG9sb2d5LmV4YW1wbGUuY29tMIIBIjAN\nBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoCCqyP4dDbZ+jmwnAQ4k1L9u2+mH\ngTLN44eyQk22c4Fm6a/wgTBn62b/wUz7XIphXC56ax2mG/FSjqsEbrWlglVETTBw\nhQoO5LxF4VyIaQ2s4Ib6fZNYtrSSftWxWTK52bgI6iIjKAfDPYIVODRVqv3zlVOp\ntSpd9glfLwwqqyAsGrB+B7RwDg7lG4VFlpVxsFmTt5VbHP+aq2uAcLE7oOyYNGgh\nq+lmtbgRvqWvFybp3nmeggDt5MZnyL5Ua4tq9lLeR9/tw3s1Bc4Ihdc99evul7bb\nNYI4iVF6UXnTEB7jrFtY/f5BcI7wVF1L96tN8Gl1Pds4YVOCAXDeOcIZuwIDAQAB\no4IBDDCCAQgwDgYDVR0PAQH/BAQDAgOoMB0GA1UdJQQWMBQGCCsGAQUFBwMBBggr\nBgEFBQcDAjAdBgNVHQ4EFgQUhT9FCFK2BQurjxGoxcsb1sH0sdowHwYDVR0jBBgw\nFoAUHVdOZhyZgLF3x/IOenJnsYFUXSYwPwYIKwYBBQUHAQEEMzAxMC8GCCsGAQUF\nBzAChiNodHRwOi8vbG9jYWxob3N0OjgyMDAvdjEvcGtpX2ludC9jYTAfBgNVHREE\nGDAWghRuZXRvbG9neS5leGFtcGxlLmNvbTA1BgNVHR8ELjAsMCqgKKAmhiRodHRw\nOi8vbG9jYWxob3N0OjgyMDAvdjEvcGtpX2ludC9jcmwwDQYJKoZIhvcNAQELBQAD\nggEBAM60BQUyBf/nnnMinWZ7oHbTmR+15LZxV80fvOQHGwPIyWxtNFVgKCYhVd7f\npo+0aJWL+TenLCZHVAXn5cplKsteUOQVxggExw0/LU0aeD+CkPQmJ8YnCX54kYgh\nKmQjJ7/QCY9d7Gn72+TYTnLEgkNR706IczfvCjSdaJNxIr9os2248kHxOsUCMUpS\n97XVror9819zCkLhucmNrlFqziovjZu2OAYSmOzT64xUPh5/a9QM66kVlIWomfom\n0nLq8R9aLAyOqcrOv4D4/dgu8yPQdU+oM9qgDn3iMv/7iucjWzNMlrwDIpnHaCHl\nw1qStQ0+mHqLLSyGI9Oq6AZnMPA=\n-----END CERTIFICATE-----",
-  "issuingCa": "-----BEGIN CERTIFICATE-----\nMIIDMzCCAhugAwIBAgIUTuBVUp4ccaLp5d4+y6t4Rxtn0VAwDQYJKoZIhvcNAQEL\nBQAwFjEUMBIGA1UEAxMLcGtpLWNhLXJvb3QwHhcNMjEwNjIyMTk0MDIwWhcNMjEw\nNzI0MTk0MDUwWjAVMRMwEQYDVQQDEwpwa2ktY2EtaW50MIIBIjANBgkqhkiG9w0B\nAQEFAAOCAQ8AMIIBCgKCAQEA7mX2plYiyfmyGCKJ6u5nTe5KouEpurXEeQ4Y6rqL\nWhFtioMEm+Ss8jtfA6J3Skmjk6O5qHcIc81W5VMe4hJRSmGK1xAfA5bldEKoP/hf\n7UHTtNGKqDLEis3NF7zYY/J2RrKZEkkMhO1Ngks2wT6JfsiqJTHI/tekNwJQace+\niTccXP9aR6CnAMkBpXYiQmEAeS6o7aaTc2jlss4k5jSDrhgSpm6PESkNOg/3u3JD\n/AhbFjjFiG4omLJvB0pzkh5S2qcEibcMm18M8YbGvUxvxuAN921CmZ1RUHyZRNqa\nMm8LGLj1q7EitC565IP797841/N81SYFDH+Ly+Ppl2VGwQIDAQABo3oweDAOBgNV\nHQ8BAf8EBAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUHVdOZhyZgLF3\nx/IOenJnsYFUXSYwHwYDVR0jBBgwFoAUXYLjh+4NKjHO8Ul9/jOw8YWGS7swFQYD\nVR0RBA4wDIIKcGtpLWNhLWludDANBgkqhkiG9w0BAQsFAAOCAQEAHVRCVjWKuHXj\nUBOcZRlsfsW/d9Uc7RamRCaTNJ9NMfFkQWuv3Mg4ejGx2mBL/laiIKymGFXf+Byo\nYjHbHwvqb+h6vLQN7CoJBEsP0hCiUqB5CSn5wnFwfG8o52XWhT6vUBBoOEz20Gkk\nLWIqa7TV32lDPlaPMCjjNVj68ANPok8zxpBveBN6P23JB98t2hWUHDSYiHw9F6mb\nw6p9e6kiyZvjws4TR4jcjpvVFS5sui9MyQJtQIula18rkFovQtZl5u/s31nHjT5s\nh0GUQ+3LfGSbNsz7tV/nFlncGazZh3tFHYRH7yYMwQq6YXh1C6HG0WtLpwvXim9c\ndwRi1l94Kg==\n-----END CERTIFICATE-----",
-  "caChain": "-----BEGIN CERTIFICATE-----\nMIIDMzCCAhugAwIBAgIUTuBVUp4ccaLp5d4+y6t4Rxtn0VAwDQYJKoZIhvcNAQEL\nBQAwFjEUMBIGA1UEAxMLcGtpLWNhLXJvb3QwHhcNMjEwNjIyMTk0MDIwWhcNMjEw\nNzI0MTk0MDUwWjAVMRMwEQYDVQQDEwpwa2ktY2EtaW50MIIBIjANBgkqhkiG9w0B\nAQEFAAOCAQ8AMIIBCgKCAQEA7mX2plYiyfmyGCKJ6u5nTe5KouEpurXEeQ4Y6rqL\nWhFtioMEm+Ss8jtfA6J3Skmjk6O5qHcIc81W5VMe4hJRSmGK1xAfA5bldEKoP/hf\n7UHTtNGKqDLEis3NF7zYY/J2RrKZEkkMhO1Ngks2wT6JfsiqJTHI/tekNwJQace+\niTccXP9aR6CnAMkBpXYiQmEAeS6o7aaTc2jlss4k5jSDrhgSpm6PESkNOg/3u3JD\n/AhbFjjFiG4omLJvB0pzkh5S2qcEibcMm18M8YbGvUxvxuAN921CmZ1RUHyZRNqa\nMm8LGLj1q7EitC565IP797841/N81SYFDH+Ly+Ppl2VGwQIDAQABo3oweDAOBgNV\nHQ8BAf8EBAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUHVdOZhyZgLF3\nx/IOenJnsYFUXSYwHwYDVR0jBBgwFoAUXYLjh+4NKjHO8Ul9/jOw8YWGS7swFQYD\nVR0RBA4wDIIKcGtpLWNhLWludDANBgkqhkiG9w0BAQsFAAOCAQEAHVRCVjWKuHXj\nUBOcZRlsfsW/d9Uc7RamRCaTNJ9NMfFkQWuv3Mg4ejGx2mBL/laiIKymGFXf+Byo\nYjHbHwvqb+h6vLQN7CoJBEsP0hCiUqB5CSn5wnFwfG8o52XWhT6vUBBoOEz20Gkk\nLWIqa7TV32lDPlaPMCjjNVj68ANPok8zxpBveBN6P23JB98t2hWUHDSYiHw9F6mb\nw6p9e6kiyZvjws4TR4jcjpvVFS5sui9MyQJtQIula18rkFovQtZl5u/s31nHjT5s\nh0GUQ+3LfGSbNsz7tV/nFlncGazZh3tFHYRH7yYMwQq6YXh1C6HG0WtLpwvXim9c\ndwRi1l94Kg==\n-----END CERTIFICATE-----",
-  "privateKey": "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEAoCCqyP4dDbZ+jmwnAQ4k1L9u2+mHgTLN44eyQk22c4Fm6a/w\ngTBn62b/wUz7XIphXC56ax2mG/FSjqsEbrWlglVETTBwhQoO5LxF4VyIaQ2s4Ib6\nfZNYtrSSftWxWTK52bgI6iIjKAfDPYIVODRVqv3zlVOptSpd9glfLwwqqyAsGrB+\nB7RwDg7lG4VFlpVxsFmTt5VbHP+aq2uAcLE7oOyYNGghq+lmtbgRvqWvFybp3nme\nggDt5MZnyL5Ua4tq9lLeR9/tw3s1Bc4Ihdc99evul7bbNYI4iVF6UXnTEB7jrFtY\n/f5BcI7wVF1L96tN8Gl1Pds4YVOCAXDeOcIZuwIDAQABAoIBAQCfDNOWoRGqtUIv\npS141tuulhc/SE7X/eaTwg1F3nsDb90Q8TkqmTIfmEchcZ2a5bifH2tpSiHcT295\nVlUowjSLqLYXFa4t9zej635dwtObxYGZ43ibkufjUqjQYuGtf70qjKoOJapV8J/1\nUGhTU2hkV6rDAD7pPBPodpac3LDlF5TyB+c8nKvEm0c72C9Il5izdQnxQS0ao0uK\nz3P1H4+j4+9YxTPdF7Pqp5h9lf2iJtb4vrXNS/7YYN4hjR1K7kYAjsteyYBwl1Ey\noUAFTSN00eMHalNZ1EiNRU+6DWF7U9Fk9qIDaeXIsRcNKhf/7tuAH71Xuorccbz8\nt3LVZWOBAoGBAMAYAiAuiGsDJaRR5f4OQTiL4Ro8ht4EiaTm4E08L39DUAhzSOrm\nu5uIIa1ODPLEI33jIv0+GEtmXeHlZRKcOoPAYDe0xSbnRtg/P3bjv0frIDeTBTD4\nInaxtOxM4SZpVxdwxbpMCXek2WdCDD1bDr7/v4uOOMlrDpSMqWpu54K5AoGBANVm\nNJNAcZxFjwHWTagdjdLZmg3LrfDLgUsRC7FIoMz+ve3eLJkj9SDGWXCIMtHwBM06\n5jF3v/Bn8jQENn840q1ToN4U7QkD0K+rFOXcTtujdMG1xKgdkXThyCv8vhFjNl2M\nkMdl3hmaSbgEwJkotoAYKpFYVH5p1vcGxfGmU5YTAoGACrjMVZODVcXFMhjIJ5gQ\nF+Hm3JoIRRgnvqaMWoNDe2z8aJxWs5XRXusIRi4XFu3PtVUaPNxcasj58IPnUlSa\nB4STWkiiwHskPym4lyA7Kv56u99e6M7QzaM5n/7iikxS6iIHR1C7Loxq/hJ3sG0G\ns65+uIFltghdtfjr897g2TECgYA06aS7pk0FTJILCJI0zy8tSttR9GDqxesHK/DU\nQofsjHWXl3FDf5D2UXg32O2Q9IycPrB5L5IeEAgUMb85iGNkqsnGhzXG+HU0OZ1y\n6U98UmlO5r0eWkaIzrsNfRu7v/fo9kOnzXBmtMT2pecDkv69gEB9zYMV3TR6B+no\n4y7ylQKBgCq6VLWEVz1apkL4uXE6OZW2eXEcRRDgO73HhqVhsPbJr9HO8aHP9ii8\now5rilOAYca41+7geoDadgtuTRgBfhJshs0PNEIFS2+x+EmzeM1HWweSioHbnlZg\nCztaOvQaYm9FsO7rHJ6rzaxz9Nd6p3DuWg1vsdBH266Jk2rFnVlD\n-----END RSA PRIVATE KEY-----",
+  "certificate": 
+  "-----BEGIN CERTIFICATE-----
+MIID0DCCArigAwIBAgIUCHLzZsARupKtLb6Tp1UKzu8EPZswDQYJKoZIhvcNAQEL
+BQAwFTETMBEGA1UEAxMKcGtpLWNhLWludDAeFw0yMTA2MjIyMTA1MDdaFw0yMTA2
+MjMyMTA1MzdaMB8xHTAbBgNVBAMTFG5ldG9sb2d5LmV4YW1wbGUuY29tMIIBIjAN
+BgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAoCCqyP4dDbZ+jmwnAQ4k1L9u2+mH
+gTLN44eyQk22c4Fm6a/wgTBn62b/wUz7XIphXC56ax2mG/FSjqsEbrWlglVETTBw
+hQoO5LxF4VyIaQ2s4Ib6fZNYtrSSftWxWTK52bgI6iIjKAfDPYIVODRVqv3zlVOp
+tSpd9glfLwwqqyAsGrB+B7RwDg7lG4VFlpVxsFmTt5VbHP+aq2uAcLE7oOyYNGgh
+q+lmtbgRvqWvFybp3nmeggDt5MZnyL5Ua4tq9lLeR9/tw3s1Bc4Ihdc99evul7bb
+NYI4iVF6UXnTEB7jrFtY/f5BcI7wVF1L96tN8Gl1Pds4YVOCAXDeOcIZuwIDAQAB
+o4IBDDCCAQgwDgYDVR0PAQH/BAQDAgOoMB0GA1UdJQQWMBQGCCsGAQUFBwMBBggr
+BgEFBQcDAjAdBgNVHQ4EFgQUhT9FCFK2BQurjxGoxcsb1sH0sdowHwYDVR0jBBgw
+FoAUHVdOZhyZgLF3x/IOenJnsYFUXSYwPwYIKwYBBQUHAQEEMzAxMC8GCCsGAQUF
+BzAChiNodHRwOi8vbG9jYWxob3N0OjgyMDAvdjEvcGtpX2ludC9jYTAfBgNVHREE
+GDAWghRuZXRvbG9neS5leGFtcGxlLmNvbTA1BgNVHR8ELjAsMCqgKKAmhiRodHRw
+Oi8vbG9jYWxob3N0OjgyMDAvdjEvcGtpX2ludC9jcmwwDQYJKoZIhvcNAQELBQAD
+ggEBAM60BQUyBf/nnnMinWZ7oHbTmR+15LZxV80fvOQHGwPIyWxtNFVgKCYhVd7f
+po+0aJWL+TenLCZHVAXn5cplKsteUOQVxggExw0/LU0aeD+CkPQmJ8YnCX54kYgh
+KmQjJ7/QCY9d7Gn72+TYTnLEgkNR706IczfvCjSdaJNxIr9os2248kHxOsUCMUpS
+97XVror9819zCkLhucmNrlFqziovjZu2OAYSmOzT64xUPh5/a9QM66kVlIWomfom
+0nLq8R9aLAyOqcrOv4D4/dgu8yPQdU+oM9qgDn3iMv/7iucjWzNMlrwDIpnHaCHl
+w1qStQ0+mHqLLSyGI9Oq6AZnMPA=
+-----END CERTIFICATE-----",
+
+"issuingCa": 
+"-----BEGIN CERTIFICATE-----
+MIIDMzCCAhugAwIBAgIUTuBVUp4ccaLp5d4+y6t4Rxtn0VAwDQYJKoZIhvcNAQEL
+BQAwFjEUMBIGA1UEAxMLcGtpLWNhLXJvb3QwHhcNMjEwNjIyMTk0MDIwWhcNMjEw
+NzI0MTk0MDUwWjAVMRMwEQYDVQQDEwpwa2ktY2EtaW50MIIBIjANBgkqhkiG9w0B
+AQEFAAOCAQ8AMIIBCgKCAQEA7mX2plYiyfmyGCKJ6u5nTe5KouEpurXEeQ4Y6rqL
+WhFtioMEm+Ss8jtfA6J3Skmjk6O5qHcIc81W5VMe4hJRSmGK1xAfA5bldEKoP/hf
+7UHTtNGKqDLEis3NF7zYY/J2RrKZEkkMhO1Ngks2wT6JfsiqJTHI/tekNwJQace+
+iTccXP9aR6CnAMkBpXYiQmEAeS6o7aaTc2jlss4k5jSDrhgSpm6PESkNOg/3u3JD
+AhbFjjFiG4omLJvB0pzkh5S2qcEibcMm18M8YbGvUxvxuAN921CmZ1RUHyZRNqa
+Mm8LGLj1q7EitC565IP797841/N81SYFDH+Ly+Ppl2VGwQIDAQABo3oweDAOBgNV
+HQ8BAf8EBAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUHVdOZhyZgLF3
+x/IOenJnsYFUXSYwHwYDVR0jBBgwFoAUXYLjh+4NKjHO8Ul9/jOw8YWGS7swFQYD
+VR0RBA4wDIIKcGtpLWNhLWludDANBgkqhkiG9w0BAQsFAAOCAQEAHVRCVjWKuHXj
+UBOcZRlsfsW/d9Uc7RamRCaTNJ9NMfFkQWuv3Mg4ejGx2mBL/laiIKymGFXf+Byo
+YjHbHwvqb+h6vLQN7CoJBEsP0hCiUqB5CSn5wnFwfG8o52XWhT6vUBBoOEz20Gkk
+LWIqa7TV32lDPlaPMCjjNVj68ANPok8zxpBveBN6P23JB98t2hWUHDSYiHw9F6mb
+w6p9e6kiyZvjws4TR4jcjpvVFS5sui9MyQJtQIula18rkFovQtZl5u/s31nHjT5s
+h0GUQ+3LfGSbNsz7tV/nFlncGazZh3tFHYRH7yYMwQq6YXh1C6HG0WtLpwvXim9c
+dwRi1l94Kg==
+-----END CERTIFICATE-----",
+  
+"caChain": 
+"-----BEGIN CERTIFICATE-----
+MIIDMzCCAhugAwIBAgIUTuBVUp4ccaLp5d4+y6t4Rxtn0VAwDQYJKoZIhvcNAQEL
+BQAwFjEUMBIGA1UEAxMLcGtpLWNhLXJvb3QwHhcNMjEwNjIyMTk0MDIwWhcNMjEw
+NzI0MTk0MDUwWjAVMRMwEQYDVQQDEwpwa2ktY2EtaW50MIIBIjANBgkqhkiG9w0B
+AQEFAAOCAQ8AMIIBCgKCAQEA7mX2plYiyfmyGCKJ6u5nTe5KouEpurXEeQ4Y6rqL
+WhFtioMEm+Ss8jtfA6J3Skmjk6O5qHcIc81W5VMe4hJRSmGK1xAfA5bldEKoP/hf
+7UHTtNGKqDLEis3NF7zYY/J2RrKZEkkMhO1Ngks2wT6JfsiqJTHI/tekNwJQace+
+iTccXP9aR6CnAMkBpXYiQmEAeS6o7aaTc2jlss4k5jSDrhgSpm6PESkNOg/3u3JD
+/AhbFjjFiG4omLJvB0pzkh5S2qcEibcMm18M8YbGvUxvxuAN921CmZ1RUHyZRNqa
+Mm8LGLj1q7EitC565IP797841/N81SYFDH+Ly+Ppl2VGwQIDAQABo3oweDAOBgNV
+HQ8BAf8EBAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUHVdOZhyZgLF3
+x/IOenJnsYFUXSYwHwYDVR0jBBgwFoAUXYLjh+4NKjHO8Ul9/jOw8YWGS7swFQYD
+VR0RBA4wDIIKcGtpLWNhLWludDANBgkqhkiG9w0BAQsFAAOCAQEAHVRCVjWKuHXj
+UBOcZRlsfsW/d9Uc7RamRCaTNJ9NMfFkQWuv3Mg4ejGx2mBL/laiIKymGFXf+Byo
+YjHbHwvqb+h6vLQN7CoJBEsP0hCiUqB5CSn5wnFwfG8o52XWhT6vUBBoOEz20Gkk
+LWIqa7TV32lDPlaPMCjjNVj68ANPok8zxpBveBN6P23JB98t2hWUHDSYiHw9F6mb
+w6p9e6kiyZvjws4TR4jcjpvVFS5sui9MyQJtQIula18rkFovQtZl5u/s31nHjT5s
+h0GUQ+3LfGSbNsz7tV/nFlncGazZh3tFHYRH7yYMwQq6YXh1C6HG0WtLpwvXim9c
+dwRi1l94Kg==
+-----END CERTIFICATE-----",
+  
+  "privateKey":
+"-----BEGIN RSA PRIVATE KEY-----
+  
+MIIEowIBAAKCAQEAoCCqyP4dDbZ+jmwnAQ4k1L9u2+mHgTLN44eyQk22c4Fm6a/w
+gTBn62b/wUz7XIphXC56ax2mG/FSjqsEbrWlglVETTBwhQoO5LxF4VyIaQ2s4Ib6
+fZNYtrSSftWxWTK52bgI6iIjKAfDPYIVODRVqv3zlVOptSpd9glfLwwqqyAsGrB+
+B7RwDg7lG4VFlpVxsFmTt5VbHP+aq2uAcLE7oOyYNGghq+lmtbgRvqWvFybp3nme
+ggDt5MZnyL5Ua4tq9lLeR9/tw3s1Bc4Ihdc99evul7bbNYI4iVF6UXnTEB7jrFtY
+/f5BcI7wVF1L96tN8Gl1Pds4YVOCAXDeOcIZuwIDAQABAoIBAQCfDNOWoRGqtUIv
+pS141tuulhc/SE7X/eaTwg1F3nsDb90Q8TkqmTIfmEchcZ2a5bifH2tpSiHcT295
+VlUowjSLqLYXFa4t9zej635dwtObxYGZ43ibkufjUqjQYuGtf70qjKoOJapV8J/1
+UGhTU2hkV6rDAD7pPBPodpac3LDlF5TyB+c8nKvEm0c72C9Il5izdQnxQS0ao0uK
+z3P1H4+j4+9YxTPdF7Pqp5h9lf2iJtb4vrXNS/7YYN4hjR1K7kYAjsteyYBwl1Ey
+oUAFTSN00eMHalNZ1EiNRU+6DWF7U9Fk9qIDaeXIsRcNKhf/7tuAH71Xuorccbz8
+t3LVZWOBAoGBAMAYAiAuiGsDJaRR5f4OQTiL4Ro8ht4EiaTm4E08L39DUAhzSOrm
+u5uIIa1ODPLEI33jIv0+GEtmXeHlZRKcOoPAYDe0xSbnRtg/P3bjv0frIDeTBTD4
+InaxtOxM4SZpVxdwxbpMCXek2WdCDD1bDr7/v4uOOMlrDpSMqWpu54K5AoGBANVm
+NJNAcZxFjwHWTagdjdLZmg3LrfDLgUsRC7FIoMz+ve3eLJkj9SDGWXCIMtHwBM06
+5jF3v/Bn8jQENn840q1ToN4U7QkD0K+rFOXcTtujdMG1xKgdkXThyCv8vhFjNl2M
+kMdl3hmaSbgEwJkotoAYKpFYVH5p1vcGxfGmU5YTAoGACrjMVZODVcXFMhjIJ5gQ
+F+Hm3JoIRRgnvqaMWoNDe2z8aJxWs5XRXusIRi4XFu3PtVUaPNxcasj58IPnUlSa
+B4STWkiiwHskPym4lyA7Kv56u99e6M7QzaM5n/7iikxS6iIHR1C7Loxq/hJ3sG0G
+s65+uIFltghdtfjr897g2TECgYA06aS7pk0FTJILCJI0zy8tSttR9GDqxesHK/DU
+QofsjHWXl3FDf5D2UXg32O2Q9IycPrB5L5IeEAgUMb85iGNkqsnGhzXG+HU0OZ1y
+6U98UmlO5r0eWkaIzrsNfRu7v/fo9kOnzXBmtMT2pecDkv69gEB9zYMV3TR6B+no
+4y7ylQKBgCq6VLWEVz1apkL4uXE6OZW2eXEcRRDgO73HhqVhsPbJr9HO8aHP9ii8
+ow5rilOAYca41+7geoDadgtuTRgBfhJshs0PNEIFS2+x+EmzeM1HWweSioHbnlZg
+CztaOvQaYm9FsO7rHJ6rzaxz9Nd6p3DuWg1vsdBH266Jk2rFnVlD
+-----END RSA PRIVATE KEY-----",
   "privateKeyType": "rsa",
   "serialNumber": "08:72:f3:66:c0:11:ba:92:ad:2d:be:93:a7:55:0a:ce:ef:04:3d:9b"
 }
+```
 
-
-
-#==== Install Consult
-
+Для автоматического подтягивания сертификата из Vault воспользуемся ***consul-template*** 
+#### Install Consult
+```
 wget https://releases.hashicorp.com/consul-template/0.26.0/consul-template_0.26.0_linux_amd64.zip
 sudo apt-get install unzip
 unzip consul-template_0.26.0_linux_amd64.zip
 sudo mv -v consul-template /usr/local/bin
+```
 
-
+```
 root@vagrant:/etc/consul-template.d# systemctl start consul-template.service
 root@vagrant:/etc/consul-template.d# systemctl status consul-template.service
 ● consul-template.service - consul-template
@@ -250,11 +377,14 @@ sudo apt install snapd
 sudo snap install ngrok
 
 ngrok http 8200
+```
 
+#### NGINX
 
-# ==== NGINX
-
+```
 root@vagrant:/home/vagrant/vault# systemctl status nginx.service
+```
+```
 ● nginx.service - A high performance web server and a reverse proxy server
      Loaded: loaded (/lib/systemd/system/nginx.service; enabled; vendor preset: enabled)
      Active: active (running) since Wed 2021-06-23 08:08:23 UTC; 8s ago
@@ -270,11 +400,13 @@ root@vagrant:/home/vagrant/vault# systemctl status nginx.service
 
 Jun 23 08:08:23 vagrant systemd[1]: Starting A high performance web server and a reverse proxy server...
 Jun 23 08:08:23 vagrant systemd[1]: Started A high performance web server and a reverse proxy server.
+```
 
 
-
-
+```
 root@vagrant:/home/vagrant/vault# openssl x509 -in /etc/nginx/certs/yet.crt -noout -text -purpose
+```
+```
 Certificate:
     Data:
         Version: 3 (0x2)
@@ -364,14 +496,16 @@ OCSP helper : Yes
 OCSP helper CA : No
 Time Stamp signing : No
 Time Stamp signing CA : No
+```
 
+---
 
-#====
-
+```
 curl -s http://0.0.0.0:8200/v1/pki/ca/pem > pki_ca.pem
-vagrant@vagrant:~/vault$
+
 vagrant@vagrant:~/vault$
 vagrant@vagrant:~/vault$ cat pki_ca.pem
+
 -----BEGIN CERTIFICATE-----
 MIIDNTCCAh2gAwIBAgIUFjYMyn8V/nOEJlMoVQwOlWBUz+4wDQYJKoZIhvcNAQEL
 BQAwFjEUMBIGA1UEAxMLcGtpLWNhLXJvb3QwHhcNMjEwNjIyMTg1NzA2WhcNMjEw
@@ -391,11 +525,15 @@ A6Rf9p0weZ5X3k+aS5tpmoF1ZF+/SJWR7l1mBAiAeqJz0YPH18QqyqIV9CeNTuho
 uPwHeV2vgELlDmYnWoGu/YfNhO90An2qPLecJDerYJLa/Q9/srvrkG7/3rp0HjdO
 0mqHnUTTynbl5K7Mwuu6DLvzdy77UazmW46TimLIO1ZWkokgCjAeBosyn9lR5LsF
 kcYTP4yr38XG
------END CERTIFICATE-----vagrant@vagrant:~/vault$
+-----END CERTIFICATE-----
 
-#====
+vagrant@vagrant:~/vault$
+```
 
+```
 vagrant@vagrant:~/vault/tmp$ curl --cacert /home/vagrant/vault/tmp/pki_ca.pem --insecure -v https://netology.example.com 2>&1 | awk 'BEGIN { cert=0 } /^\* SSL connection/ { cert=1 } /^\*/ { if (cert) print }'
+```
+```
 * SSL connection using TLSv1.2 / ECDHE-RSA-AES256-GCM-SHA384
 * ALPN, server accepted to use h2
 * Server certificate:
@@ -410,12 +548,4 @@ vagrant@vagrant:~/vault/tmp$ curl --cacert /home/vagrant/vault/tmp/pki_ca.pem --
 * Using Stream ID: 1 (easy handle 0x561297d73c60)
 * Connection state changed (MAX_CONCURRENT_STREAMS == 128)!
 * Connection #0 to host netology.example.com left intact
-
-
-
-
-
-
-
-
-
+```
