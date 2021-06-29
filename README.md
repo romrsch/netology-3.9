@@ -1,8 +1,7 @@
 ##  netology-3.9 
 
 
-Установите Hashicorp Vault в виртуальной машине Vagrant/VirtualBox. Это не является обязательным для выполнения задания, но для лучшего понимания что происходит при выполнении команд (посмотреть результат в UI), можно по аналогии с netdata из прошлых лекций пробросить порт Vault на localhost:
-
+Установим Hashicorp Vault в виртуальной машине Vagrant/VirtualBox.
 
 #### insatall Valut
 
@@ -18,7 +17,7 @@ vault --version
 	Vault v1.7.3 (5d517c864c8f10385bf65627891bc7ef55f5e827)
 ```
 
-Запускаем Vault в dev режиме: 
+Запускаем Vault в dev режиме (т.е. только для разработки или экспериментов): 
 
 ```
 vagrant@vagrant:~$ VAULT_UI=true vault server -dev -dev-listen-address="0.0.0.0:8200" -dev-root-token-id="root"
@@ -39,6 +38,7 @@ vagrant@vagrant:~$ VAULT_UI=true vault server -dev -dev-listen-address="0.0.0.0:
              Version Sha: 5d517c864c8f10385bf65627891bc7ef55f5e827
 
 ```
+Проверим свою установку:
 ```
 vagrant@vagrant:~$ export VAULT_ADDR='http://0.0.0.0:8200'
 vagrant@vagrant:~$ vault status
@@ -59,10 +59,9 @@ HA Enabled      false
 vagrant@vagrant:~$
 
 ```
-Создадим Root CA и Intermediate CA
+#### Создадим корневой (Root CA) и промежуточный (Intermediate CA) сертификаты
 
-#### generate the Root CA:
-
+Войдем в систему, используя свой **root** токен:
 ```
 vault login root
 Success! You are now authenticated. The token information displayed below
@@ -79,17 +78,21 @@ token_policies       ["root"]
 identity_policies    []
 policies             ["root"]
 ```
+включим секретный механизм PKI (Public Key Infrastructure - инфраструктура открытых ключей):
 ```
  vault secrets enable pki
 Success! Enabled the pki secrets engine at: pki/
 ```
+Команда для создания корневого центра сертификации (Root CA):
 ```
  vault write -format=json pki/root/generate/internal common_name="pki-ca-root" ttl=87600h | tee >(jq -r .data.certificate > ca.pem) >(jq -r .data.issuing_ca > issuing_ca.pem) >(jq -r .data.private_key > ca-key.pem)
 
 ```
+Можем проверить, все ли в порядке, из самого API:
 ```
  curl -s http://0.0.0.0:8200/v1/pki/ca/pem | openssl x509 -text
  ```
+ Всё в порядке:
  ```
 Certificate:
     Data:
@@ -175,13 +178,16 @@ kcYTP4yr38XG
 -----END CERTIFICATE-----
 
 ```
-подпишим Intermediate CA csr на сертификат для тестового домена netology.example.com
 
-#### enable and configure an Intermediate CA
+#### Включение и настройка промежуточного ЦС (Intermediate CA)
+
+Теперь, когда у нас есть готовый корневой центр сертификации, мы можем включить и настроить промежуточный центр сертификации по другому пути. Включаем тот же секретный механизм с другой конфигурацией и в другом PATH:
+
 ```
     vault secrets enable -path pki_int pki
-```
 Success! Enabled the pki secrets engine at: pki_int/
+```
+Используя аналогичный процесс, мы можем сгенерировать запрос на подписание сертификата промежуточного ЦС:
 ```
 vault write -format=json pki_int/intermediate/generate/internal common_name="pki-ca-int" ttl=43800h | tee >(jq -r .data.csr > pki_int.csr) >(jq -r .data.private_key > pki_int.pem)
 ```
@@ -213,6 +219,7 @@ h+/vTVH/bStPp04d8ZbzLusHNgWlgQ==
   "warnings": null
 }
 ```
+Можем внедрить его в нашу конфигурацию промежуточного центра сертификации:
 ```
 vault write pki_int/intermediate/set-signed certificate=@pki_int.pem
 ```
@@ -221,30 +228,15 @@ Success! Data written to: pki_int/intermediate/set-signed
 ```
 #### PKI Role
 
- ```
- vault login s.6ZlvUSO93OW4tlyTFOEkgnxl
-```
-```
-Success! You are now authenticated. The token information displayed below
-is already stored in the token helper. You do NOT need to run "vault login"
-again. Future Vault requests will automatically use this token.
-
-Key                  Value
----                  -----
-token                s.6ZlvUSO93OW4tlyTFOEkgnxl
-token_accessor       GbxoEgaus0Yb57KbkNSuAeUE
-token_duration       47h58m38s
-token_renewable      true
-token_policies       ["default" "pki_int"]
-identity_policies    []
-policies             ["default" "pki_int"]
-```
-
-#### Create a Role
+Теперь вам нужно создать роль, которая будет использоваться потребителями сертификатов:
 ```
 vault write pki_int/roles/example-dot-com allowed_domains="example.com" allow_subdomains=true max_ttl="720h"
+```
+Создаём свой сертификат TLS с помощью приведенной ниже команды:
+```
 vault write pki_int/issue/example-dot-com common_name="netology.example.com" ttl="24h"
 ```
+Мы должны получить сертификат для вашего web сервера NGINX.
 ```
 {
   "certificate": 
@@ -349,9 +341,9 @@ CztaOvQaYm9FsO7rHJ6rzaxz9Nd6p3DuWg1vsdBH266Jk2rFnVlD
   "serialNumber": "08:72:f3:66:c0:11:ba:92:ad:2d:be:93:a7:55:0a:ce:ef:04:3d:9b"
 }
 ```
-
-Для автоматического подтягивания сертификата из Vault воспользуемся ***consul-template*** 
+ 
 #### Install Consult
+Для автоматического подтягивания сертификата из Vault воспользуемся ***consul-template***
 ```
 wget https://releases.hashicorp.com/consul-template/0.26.0/consul-template_0.26.0_linux_amd64.zip
 sudo apt-get install unzip
@@ -380,7 +372,7 @@ ngrok http 8200
 ```
 
 #### NGINX
-
+развернем сервер NGINX
 ```
 root@vagrant:/home/vagrant/vault# systemctl status nginx.service
 ```
@@ -401,103 +393,6 @@ root@vagrant:/home/vagrant/vault# systemctl status nginx.service
 Jun 23 08:08:23 vagrant systemd[1]: Starting A high performance web server and a reverse proxy server...
 Jun 23 08:08:23 vagrant systemd[1]: Started A high performance web server and a reverse proxy server.
 ```
-
-
-```
-root@vagrant:/home/vagrant/vault# openssl x509 -in /etc/nginx/certs/yet.crt -noout -text -purpose
-```
-```
-Certificate:
-    Data:
-        Version: 3 (0x2)
-        Serial Number:
-            43:2f:a2:70:4b:2a:99:73:18:64:3b:e0:c9:f5:61:92:31:55:37:45
-        Signature Algorithm: sha256WithRSAEncryption
-        Issuer: CN = pki-ca-int
-        Validity
-            Not Before: Jun 22 10:27:43 2021 GMT
-            Not After : Jun 22 10:30:13 2021 GMT
-        Subject: CN = example.com
-        Subject Public Key Info:
-            Public Key Algorithm: rsaEncryption
-                RSA Public-Key: (2048 bit)
-                Modulus:
-                    00:d6:58:1e:59:4f:98:87:49:d1:d1:5e:37:12:99:
-                    12:6a:aa:3e:20:ac:3e:ea:76:58:10:f7:37:02:62:
-                    ba:41:17:d5:1b:20:fe:aa:23:f7:d1:24:e0:27:de:
-                    92:79:bf:df:41:b3:4c:a8:37:7c:87:31:8a:3a:13:
-                    d1:ec:2b:a5:18:d2:fe:e8:66:1b:00:94:61:81:58:
-                    6e:cb:7d:8f:5f:03:01:48:a0:33:ea:a9:6d:08:ca:
-                    32:d2:4b:33:84:d7:36:e7:99:98:e4:7e:6a:dd:1c:
-                    66:06:00:90:a9:67:71:e1:dd:5b:f9:40:34:f4:7c:
-                    b1:9e:e8:d4:ac:ce:7a:9d:f5:3d:db:ab:c9:a9:5d:
-                    ac:e6:af:4d:a0:d8:23:19:47:15:7d:ab:df:6f:a0:
-                    42:bd:91:2e:4b:70:06:72:b7:5f:5f:13:d9:5b:57:
-                    5d:96:ce:e3:80:5c:5b:4d:af:4a:83:a7:78:e2:6e:
-                    71:46:8f:56:d3:85:d7:ba:c1:ae:87:31:78:eb:b6:
-                    46:65:f2:ce:bf:b8:53:42:9e:6e:d1:c9:54:99:e7:
-                    8f:43:ad:59:31:81:a9:38:8c:ea:34:cc:4f:3a:b4:
-                    4a:4d:95:fd:93:ec:e1:fb:ad:bf:a6:26:6b:ba:f3:
-                    f8:54:f9:8c:23:a8:54:c7:15:b4:f1:4a:94:b4:52:
-                    2a:3f
-                Exponent: 65537 (0x10001)
-        X509v3 extensions:
-            X509v3 Key Usage: critical
-                Digital Signature, Key Encipherment, Key Agreement
-            X509v3 Extended Key Usage:
-                TLS Web Server Authentication, TLS Web Client Authentication
-            X509v3 Subject Key Identifier:
-                62:DB:93:3E:05:FF:3B:62:56:7E:B2:89:2D:01:2A:D6:8F:71:10:D2
-            X509v3 Authority Key Identifier:
-                keyid:C1:4D:58:9F:A3:55:C6:8B:98:F5:D8:40:AD:F8:6F:67:67:E1:4B:7D
-
-            Authority Information Access:
-                CA Issuers - URI:http://127.0.0.1:8200/v1/pki_int/ca
-
-            X509v3 Subject Alternative Name:
-                DNS:example.com
-            X509v3 CRL Distribution Points:
-
-                Full Name:
-                  URI:http://127.0.0.1:8200/v1/pki_int/crl
-
-    Signature Algorithm: sha256WithRSAEncryption
-         57:76:73:33:0c:6f:49:68:66:fa:85:07:90:6c:30:f9:79:d6:
-         91:ca:35:76:7e:e1:18:50:75:47:f6:65:6a:76:40:e0:a0:cd:
-         de:51:d4:3c:fa:05:78:99:e2:70:1a:80:67:f5:75:9f:b2:95:
-         91:c5:5a:72:95:fa:49:8b:18:6c:5a:8f:f0:2e:e0:a8:82:44:
-         a0:36:54:15:dc:8d:2e:c0:95:67:d8:2b:13:39:be:84:16:e7:
-         99:9e:e5:27:60:76:6f:5a:84:98:81:d1:ea:02:c4:be:af:98:
-         47:c3:f4:e5:3c:43:3b:36:23:75:b1:f4:25:95:4d:b6:93:83:
-         51:fc:01:59:db:56:03:9f:07:5c:b3:57:2b:fd:f3:fa:68:64:
-         0f:61:75:de:ec:ec:eb:75:68:78:73:92:ff:91:97:b3:d9:e2:
-         f8:06:f4:ff:d8:c8:23:d4:ba:ef:65:09:c2:bc:3a:2e:a2:f1:
-         da:f8:9e:63:4e:b3:35:30:70:89:ef:c7:f5:84:8e:6f:fc:76:
-         38:b2:ec:ee:47:e0:d2:44:2e:99:68:16:1f:48:46:44:bc:dc:
-         1d:5d:05:5e:ec:80:3d:1d:ae:00:94:06:1f:dd:64:b3:bf:85:
-         23:50:1f:44:82:a9:94:73:9a:55:3b:a4:fc:1d:f2:f5:83:32:
-         f3:9b:33:b9
-Certificate purposes:
-SSL client : Yes
-SSL client CA : No
-SSL server : Yes
-SSL server CA : No
-Netscape SSL server : Yes
-Netscape SSL server CA : No
-S/MIME signing : No
-S/MIME signing CA : No
-S/MIME encryption : No
-S/MIME encryption CA : No
-CRL signing : No
-CRL signing CA : No
-Any Purpose : Yes
-Any Purpose CA : Yes
-OCSP helper : Yes
-OCSP helper CA : No
-Time Stamp signing : No
-Time Stamp signing CA : No
-```
-
 ---
 
 ```
@@ -529,7 +424,7 @@ kcYTP4yr38XG
 
 vagrant@vagrant:~/vault$
 ```
-
+С помощью команды curl со своего рабочего компьютера проверим статус сертификата NGINX:
 ```
 vagrant@vagrant:~/vault/tmp$ curl --cacert /home/vagrant/vault/tmp/pki_ca.pem --insecure -v https://netology.example.com 2>&1 | awk 'BEGIN { cert=0 } /^\* SSL connection/ { cert=1 } /^\*/ { if (cert) print }'
 ```
